@@ -1,53 +1,124 @@
-import Link from "next/link";
+"use client";
 
-import { LatestPost } from "~/app/_components/post";
-import { api, HydrateClient } from "~/trpc/server";
+import { useState } from "react";
+import { mockRoom, mockSongs, type Song } from "~/lib/mock-data";
+import { MusicPlayer } from "~/components/music-player";
+import { QueueManager } from "~/components/queue-manager";
+import { SongBrowser } from "~/components/song-browser";
+import { RoomHeader } from "~/components/room-header";
+import { Button } from "~/components/ui/button";
+import { List, Search } from "lucide-react";
 
-export default async function Home() {
-  const hello = await api.post.hello({ text: "from tRPC" });
+export default function MusicRoom() {
+  const [room, setRoom] = useState(mockRoom);
+  const [currentUser] = useState(room.users[0]); // user_1 (Alex - the host)
+  const [showSongBrowser, setShowSongBrowser] = useState(false);
+  const [showQueue, setShowQueue] = useState(true);
 
-  void api.post.getLatest.prefetch();
+  const addSongToQueue = (song: Song) => {
+    setRoom((prev) => ({
+      ...prev,
+      queue: [...prev.queue, song],
+    }));
+    setShowSongBrowser(false);
+  };
+
+  const removeSongFromQueue = (songId: string) => {
+    setRoom((prev) => ({
+      ...prev,
+      queue: prev.queue.filter((song) => song?.id !== songId),
+    }));
+  };
+
+  const reorderQueue = (newQueue: Song[]) => {
+    setRoom((prev) => ({
+      ...prev,
+      queue: newQueue,
+    }));
+  };
+
+  const playNextSong = () => {
+    if (room.queue.length > 0) {
+      const nextSong = room.queue[0];
+      setRoom((prev) => ({
+        ...prev,
+        currentSong: nextSong,
+        queue: prev.queue.slice(1),
+        currentTime: 0,
+      }));
+    }
+  };
+
+  const togglePlayPause = () => {
+    setRoom((prev) => ({
+      ...prev,
+      isPlaying: !prev.isPlaying,
+    }));
+  };
+
+  const savePlaylist = () => {
+    if (currentUser?.isHost) {
+      // Mock save functionality
+      alert(`Playlist saved with ${room.queue.length} songs!`);
+    }
+  };
+
+  if (!currentUser) {
+    return <div>No user found</div>;
+  }
 
   return (
-    <HydrateClient>
-      <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-        <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16">
-          <h1 className="text-5xl font-extrabold tracking-tight sm:text-[5rem]">
-            Create <span className="text-[hsl(280,100%,70%)]">T3</span> App
-          </h1>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-8">
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/usage/first-steps"
-              target="_blank"
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+      <div className="container mx-auto max-w-md px-4 py-6">
+        <RoomHeader room={room} currentUser={currentUser} />
+
+        <div className="space-y-6">
+          {room.currentSong && (
+            <MusicPlayer
+              currentSong={room.currentSong}
+              isPlaying={room.isPlaying}
+              currentTime={room.currentTime}
+              onPlayPause={togglePlayPause}
+              onNext={playNextSong}
+            />
+          )}
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setShowSongBrowser(!showSongBrowser)}
+              className="flex-1"
+              variant={showSongBrowser ? "secondary" : "default"}
             >
-              <h3 className="text-2xl font-bold">First Steps →</h3>
-              <div className="text-lg">
-                Just the basics - Everything you need to know to set up your
-                database and authentication.
-              </div>
-            </Link>
-            <Link
-              className="flex max-w-xs flex-col gap-4 rounded-xl bg-white/10 p-4 hover:bg-white/20"
-              href="https://create.t3.gg/en/introduction"
-              target="_blank"
+              <Search className="mr-2 h-4 w-4" />
+              Browse Songs
+            </Button>
+            <Button
+              onClick={() => setShowQueue(!showQueue)}
+              variant={showQueue ? "secondary" : "outline"}
+              size="icon"
             >
-              <h3 className="text-2xl font-bold">Documentation →</h3>
-              <div className="text-lg">
-                Learn more about Create T3 App, the libraries it uses, and how
-                to deploy it.
-              </div>
-            </Link>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-2xl text-white">
-              {hello ? hello.greeting : "Loading tRPC query..."}
-            </p>
+              <List className="h-4 w-4" />
+            </Button>
           </div>
 
-          <LatestPost />
+          {showSongBrowser && (
+            <SongBrowser
+              songs={mockSongs}
+              onAddSong={addSongToQueue}
+              queuedSongIds={room.queue.map((s) => s?.id ?? "")}
+            />
+          )}
+
+          {showQueue && (
+            <QueueManager
+              queue={room.queue.filter((song) => song !== null) as Song[]}
+              onRemoveSong={removeSongFromQueue}
+              onReorderQueue={reorderQueue}
+              canSavePlaylist={currentUser.isHost}
+              onSavePlaylist={savePlaylist}
+            />
+          )}
         </div>
-      </main>
-    </HydrateClient>
+      </div>
+    </div>
   );
 }
