@@ -1,27 +1,41 @@
-// Example model schema from the Drizzle docs
-// https://orm.drizzle.team/docs/sql-schema-declaration
+import {
+    int,
+    bigint,
+    text,
+    singlestoreTable,
+    timestamp,
+    boolean,
+} from "drizzle-orm/singlestore-core";
 
-import { sql } from "drizzle-orm";
-import { index, mysqlTableCreator } from "drizzle-orm/mysql-core";
+export const users = singlestoreTable("users", {
+    id: text("id").primaryKey().notNull(),
+    username: text("username"),
+    email: text("email"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").onUpdateNow(),
+    isActive: boolean("is_active").default(false),
+});
 
-/**
- * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
- * database instance for multiple projects.
- *
- * @see https://orm.drizzle.team/docs/goodies#multi-project-schema
- */
-export const createTable = mysqlTableCreator((name) => `my-music_${name}`);
+export const rooms = singlestoreTable("rooms", {
+    id: bigint("id", { mode: "bigint" }).primaryKey().autoincrement(),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    lastActivity: timestamp("last_activity").onUpdateNow(),
+    ownerId: text("owner_id").notNull(),
+    isActive: boolean("is_active").default(false),
+    memberCount: int("member_count").default(0),
+    currentSongTitle: text("current_song_title")
+        .$type<string | null>()
+        .default(null),
+    currentSongArtist: text("current_song_artist")
+        .$type<string | null>()
+        .default(null),
+});
 
-export const posts = createTable(
-  "post",
-  (d) => ({
-    id: d.bigint({ mode: "number" }).primaryKey().autoincrement(),
-    name: d.varchar({ length: 256 }),
-    createdAt: d
-      .timestamp()
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: d.timestamp().onUpdateNow(),
-  }),
-  (t) => [index("name_idx").on(t.name)],
-);
+export const roomMembers = singlestoreTable("room_members", {
+    id: bigint("id", { mode: "bigint" }).primaryKey().autoincrement(),
+    roomId: bigint("room_id", { mode: "bigint" }).notNull(),
+    userId: text("user_id").notNull(),
+    joinedAt: timestamp("joined_at").defaultNow().notNull(),
+    isActive: boolean("is_active").default(false),
+});

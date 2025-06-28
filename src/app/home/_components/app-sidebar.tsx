@@ -24,7 +24,7 @@ interface DashboardSidebarProps {
   onJoinRoom: () => void;
 }
 
-export function DashboardSidebar({
+export default function AppSidebar({
   onCreateRoom,
   onJoinRoom,
 }: DashboardSidebarProps) {

@@ -2,12 +2,12 @@
 
 [x] Authentication
 
-[ ] Add a sidebar
-
-[ ] Integrate Spotify
+[x] Add a sidebar
 
 [ ] Create Rooms
 
 [ ] Join Room
+
+[ ] Integrate Spotify
 
 [ ] Integrate Song Queue
