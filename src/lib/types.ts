@@ -19,11 +19,13 @@ export interface Room {
 
 export interface Song {
     id: string;
-    youtube_id: string;
+    spotify_id: string;
     title: string;
     artist: string;
     duration: number;
     thumbnail: string;
+    preview_url: string | null;
+    spotify_url: string;
 }
 
 export interface QueueItem {
