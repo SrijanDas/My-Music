@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Play, Pause, SkipForward, Volume2, ExternalLink } from "lucide-react";
+import { Play, Pause, SkipForward, SkipBack, Volume2 } from "lucide-react";
 import { useRoom } from "@/contexts/RoomContext";
-import { useSpotifyPlayer } from "@/hooks/useSpotifyPlayer";
+import { useYTMusicPlayer } from "@/hooks/useYTMusicPlayer";
 import Image from "next/image";
 
 export function MusicPlayer() {
@@ -23,10 +23,16 @@ export function MusicPlayer() {
     const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const currentSong = room?.current_song;
-    const previewUrl = currentSong?.preview_url || null;
+
+    console.log("MusicPlayer: Current song data:", {
+        currentSong,
+        youtube_id: currentSong?.youtube_id,
+        title: currentSong?.title,
+        roomIsPlaying: room?.is_playing,
+    });
 
     const {
-        audioRef,
+        playerRef,
         player,
         playerReady,
         isPlaying,
@@ -37,28 +43,38 @@ export function MusicPlayer() {
         pause,
         seekTo,
         setVolume: setPlayerVolume,
-    } = useSpotifyPlayer({
-        trackId: currentSong?.spotify_id,
-        previewUrl,
+    } = useYTMusicPlayer({
+        trackId: currentSong?.youtube_id,
         onReady: () => {
-            console.log("Spotify player ready");
+            console.log("YouTube Music player ready for:", currentSong?.title);
             setPlaybackError(null);
         },
         onStateChange: (state) => {
-            console.log("Player state changed:", state);
+            console.log(
+                "Player state changed to:",
+                state,
+                "for song:",
+                currentSong?.title
+            );
             if (isCreator && state === "ended") {
                 skipToNext();
             }
         },
         onError: (errorMessage) => {
-            console.error("Spotify Player Error:", errorMessage);
+            console.error("YouTube Music Player Error:", errorMessage);
             setPlaybackError(errorMessage);
         },
     });
 
     // Sync playback state for non-creators
     useEffect(() => {
-        if (!player || !playerReady || !room || isCreator || !previewUrl)
+        if (
+            !player ||
+            !playerReady ||
+            !room ||
+            isCreator ||
+            !currentSong?.youtube_id
+        )
             return;
 
         const syncPlayback = () => {
@@ -90,7 +106,7 @@ export function MusicPlayer() {
         playerReady,
         room,
         isCreator,
-        previewUrl,
+        currentSong?.youtube_id,
         currentTime,
         isPlaying,
         seekTo,
@@ -100,7 +116,13 @@ export function MusicPlayer() {
 
     // Update room state when creator controls playback
     useEffect(() => {
-        if (!player || !playerReady || !room || !isCreator || !previewUrl)
+        if (
+            !player ||
+            !playerReady ||
+            !room ||
+            !isCreator ||
+            !currentSong?.youtube_id
+        )
             return;
 
         const updateInterval = setInterval(() => {
@@ -113,7 +135,7 @@ export function MusicPlayer() {
         playerReady,
         room,
         isCreator,
-        previewUrl,
+        currentSong?.youtube_id,
         isPlaying,
         currentTime,
         updatePlaybackState,
@@ -121,7 +143,12 @@ export function MusicPlayer() {
 
     // Start playing when room state changes and we're in sync
     useEffect(() => {
-        if (!player || !playerReady || !room?.current_song || !previewUrl)
+        if (
+            !player ||
+            !playerReady ||
+            !room?.current_song ||
+            !currentSong?.youtube_id
+        )
             return;
 
         if (room.is_playing && !isPlaying && isCreator) {
@@ -132,7 +159,7 @@ export function MusicPlayer() {
         playerReady,
         room?.current_song,
         room?.is_playing,
-        previewUrl,
+        currentSong?.youtube_id,
         isPlaying,
         isCreator,
         play,
@@ -144,17 +171,29 @@ export function MusicPlayer() {
     }, [volume, setPlayerVolume]);
 
     const handlePlayPause = () => {
-        if (!player || !playerReady || !isCreator || !previewUrl) {
-            console.warn("Cannot play/pause:", {
+        console.log("handlePlayPause called", {
+            player: !!player,
+            playerReady,
+            isCreator,
+            youtubeId: !!currentSong?.youtube_id,
+            isPlaying,
+            currentSong: currentSong?.title,
+        });
+
+        if (!player || !playerReady || !isCreator || !currentSong?.youtube_id) {
+            console.warn("Cannot play/pause - missing requirements:", {
                 player: !!player,
                 playerReady,
                 isCreator,
-                previewUrl: !!previewUrl,
+                youtubeId: !!currentSong?.youtube_id,
             });
             return;
         }
 
         try {
+            console.log(
+                `Attempting to ${isPlaying ? "pause" : "play"} the track`
+            );
             if (isPlaying) {
                 pause();
             } else {
@@ -169,6 +208,29 @@ export function MusicPlayer() {
     const handleSkip = () => {
         if (!isCreator) return;
         skipToNext();
+    };
+
+    const handleSkipBack = () => {
+        if (!isCreator) return;
+        // If we're more than 3 seconds into the song, restart it
+        // Otherwise, go to previous song in queue (TODO: implement skipToPrevious in context)
+        if (currentTime > 3) {
+            seekTo(0);
+        } else {
+            // For now, just restart the song until we implement skipToPrevious
+            seekTo(0);
+        }
+    };
+
+    const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isCreator || !playerReady || duration === 0) return;
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickPercentage = clickX / rect.width;
+        const newTime = clickPercentage * duration;
+
+        seekTo(Math.max(0, Math.min(newTime, duration)));
     };
 
     const formatTime = (time: number) => {
@@ -221,43 +283,30 @@ export function MusicPlayer() {
                                 {currentSong?.artist}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        currentSong?.spotify_url &&
-                                        window.open(
-                                            currentSong.spotify_url,
-                                            "_blank"
-                                        )
-                                    }
-                                >
-                                    <ExternalLink className="h-3 w-3 mr-1" />
-                                    Open in Spotify
-                                </Button>
-                                {!previewUrl && (
-                                    <span className="text-xs text-muted-foreground">
-                                        Preview not available
-                                    </span>
-                                )}
+                                {/* Removed "Open in YouTube" button */}
                             </div>
                         </div>
                     </div>
 
-                    {/* Audio Element (hidden) */}
-                    <audio
-                        ref={audioRef}
-                        style={{ display: "none" }}
-                        preload="metadata"
-                    />
+                    {/* YouTube Player (hidden) */}
+                    <div ref={playerRef} style={{ display: "none" }} />
 
                     {/* Controls */}
-                    {previewUrl && (
+                    {currentSong?.youtube_id && (
                         <div className="space-y-2">
                             {/* Progress Bar */}
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <span>{formatTime(currentTime)}</span>
-                                <div className="flex-1 bg-muted rounded-full h-2">
+                                <div
+                                    className={`flex-1 bg-muted rounded-full h-2 ${
+                                        isCreator ? "cursor-pointer" : ""
+                                    }`}
+                                    onClick={
+                                        isCreator
+                                            ? handleProgressClick
+                                            : undefined
+                                    }
+                                >
                                     <div
                                         className="bg-primary h-2 rounded-full transition-all"
                                         style={{
@@ -298,6 +347,13 @@ export function MusicPlayer() {
                                         >
                                             <SkipForward className="h-4 w-4" />
                                         </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={handleSkipBack}
+                                        >
+                                            <SkipBack className="h-4 w-4" />
+                                        </Button>
                                     </>
                                 )}
                             </div>
@@ -327,12 +383,9 @@ export function MusicPlayer() {
                         </div>
                     )}
 
-                    {!previewUrl && (
+                    {!currentSong?.youtube_id && (
                         <div className="text-center text-sm text-muted-foreground">
-                            This track doesn&apos;t have a preview available.
-                            <br />
-                            Click &quot;Open in Spotify&quot; to listen to the
-                            full track.
+                            This track is not available for playback.
                         </div>
                     )}
 

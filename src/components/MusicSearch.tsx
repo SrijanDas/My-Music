@@ -6,17 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Plus, ExternalLink } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { useRoom } from "@/contexts/RoomContext";
-import { SpotifySearchResult } from "@/lib/spotify";
+import { YTMusicSearchResult } from "@/lib/ytmusic";
 import { Song } from "@/lib/types";
 import { toast } from "sonner";
-import { searchSpotify } from "@/lib/spotify-search";
+import { searchYTMusic } from "@/lib/ytmusic-search";
 
 export function MusicSearch() {
     const { isCreator, addToQueue } = useRoom();
     const [query, setQuery] = useState("");
-    const [results, setResults] = useState<SpotifySearchResult[]>([]);
+    const [results, setResults] = useState<YTMusicSearchResult[]>([]);
     const [loading, setLoading] = useState(false);
 
     const handleSearch = async () => {
@@ -24,7 +24,7 @@ export function MusicSearch() {
 
         setLoading(true);
         try {
-            const searchResults = await searchSpotify(query);
+            const searchResults = await searchYTMusic(query);
             setResults(searchResults);
         } catch (error) {
             console.error("Search error:", error);
@@ -46,7 +46,7 @@ export function MusicSearch() {
         return `${mins}:${secs.toString().padStart(2, "0")}`;
     };
 
-    const handleAddToQueue = async (track: SpotifySearchResult) => {
+    const handleAddToQueue = async (track: YTMusicSearchResult) => {
         if (!isCreator) {
             toast.error("Only the room creator can add songs");
             return;
@@ -55,13 +55,12 @@ export function MusicSearch() {
         try {
             const song: Song = {
                 id: track.id,
-                spotify_id: track.id,
+                youtube_id: track.id,
                 title: track.title,
                 artist: track.artist,
                 duration: track.duration,
                 thumbnail: track.thumbnail,
-                preview_url: track.preview_url,
-                spotify_url: track.spotify_url,
+                youtube_url: track.youtube_url,
             };
 
             await addToQueue(song);
@@ -78,7 +77,7 @@ export function MusicSearch() {
                 <div className="space-y-4">
                     <div className="flex gap-2">
                         <Input
-                            placeholder="Search for music on Spotify..."
+                            placeholder="Search for music on YouTube Music..."
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyPress={handleKeyPress}
@@ -95,7 +94,7 @@ export function MusicSearch() {
 
                     {loading && (
                         <div className="text-center text-muted-foreground">
-                            Searching Spotify...
+                            Searching YouTube Music...
                         </div>
                     )}
 
@@ -123,24 +122,9 @@ export function MusicSearch() {
                                         </p>
                                         <p className="text-xs text-muted-foreground">
                                             {formatDuration(track.duration)}
-                                            {!track.preview_url &&
-                                                " • No preview available"}
                                         </p>
                                     </div>
                                     <div className="flex gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
-                                            onClick={() =>
-                                                window.open(
-                                                    track.spotify_url,
-                                                    "_blank"
-                                                )
-                                            }
-                                            title="Open in Spotify"
-                                        >
-                                            <ExternalLink className="h-4 w-4" />
-                                        </Button>
                                         {isCreator && (
                                             <Button
                                                 size="icon"
