@@ -123,10 +123,14 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
                                 clearInterval(intervalRef.current);
                             }
                             intervalRef.current = setInterval(() => {
-                                if (event.target) {
-                                    setCurrentTime(
-                                        event.target.getCurrentTime()
-                                    );
+                                try {
+                                    if (event.target && typeof event.target.getCurrentTime === 'function') {
+                                        const time = event.target.getCurrentTime();
+                                        console.log("Updating current time:", time);
+                                        setCurrentTime(time);
+                                    }
+                                } catch (error) {
+                                    console.warn("Error getting current time:", error);
                                 }
                             }, 1000);
                         } else if (state === window.YT.PlayerState.PAUSED) {
@@ -197,6 +201,28 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
             currentTrackIdRef.current = trackId;
         }
     }, [trackId, player]);
+
+    // Backup time tracking using player state (in case event.target becomes stale)
+    useEffect(() => {
+        if (!player || !playerReady || !isPlaying) {
+            return;
+        }
+
+        const backupInterval = setInterval(() => {
+            try {
+                if (player && typeof player.getCurrentTime === 'function') {
+                    const time = player.getCurrentTime();
+                    setCurrentTime(time);
+                }
+            } catch (error) {
+                console.warn("Backup time tracking error:", error);
+            }
+        }, 1000);
+
+        return () => {
+            clearInterval(backupInterval);
+        };
+    }, [player, playerReady, isPlaying]);
 
     const play = () => {
         console.log("Play function called:", {

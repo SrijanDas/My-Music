@@ -25,13 +25,6 @@ export function MusicPlayer() {
 
     const currentSong = room?.current_song;
 
-    // console.log("MusicPlayer: Current song data:", {
-    //     currentSong,
-    //     youtube_id: currentSong?.youtube_id,
-    //     title: currentSong?.title,
-    //     roomIsPlaying: room?.is_playing,
-    // });
-
     const {
         playerRef,
         player,
@@ -75,6 +68,16 @@ export function MusicPlayer() {
             console.error("YouTube Music Player Error:", errorMessage);
             setPlaybackError(errorMessage);
         },
+    });
+
+    console.log("MusicPlayer: Current song data:", {
+        currentSong,
+        youtube_id: currentSong?.youtube_id,
+        title: currentSong?.title,
+        roomIsPlaying: room?.is_playing,
+        currentTime,
+        duration,
+        isPlaying,
     });
 
     // Sync playback state for non-creators
