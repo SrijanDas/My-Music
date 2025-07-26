@@ -26,6 +26,7 @@ interface UseYTMusicPlayerOptions {
 }
 
 export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
+    const { trackId, onReady, onStateChange, onError } = options;
     const [player, setPlayer] = useState<YTPlayer | null>(null);
     const [playerReady, setPlayerReady] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -35,38 +36,38 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
 
     const playerRef = useRef<HTMLDivElement>(null);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
-    const startTimeTracking = useCallback(() => {
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-        }
-        intervalRef.current = setInterval(() => {
-            if (player && isPlaying) {
-                setCurrentTime(player.getCurrentTime());
-            }
-        }, 1000);
-    }, [player, isPlaying]);
-
-    const stopTimeTracking = useCallback(() => {
-        if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-        }
-    }, []);
+    const currentTrackIdRef = useRef<string | null>(null);
 
     const initializePlayer = useCallback(() => {
-        if (!playerRef.current || !options.trackId) {
+        if (!playerRef.current || !trackId) {
             console.log("Cannot initialize player:", {
                 playerRef: !!playerRef.current,
-                trackId: options.trackId,
+                trackId: trackId,
             });
             return;
         }
 
-        console.log(
-            "Initializing YouTube player with trackId:",
-            options.trackId
-        );
+        // Prevent re-initialization of the same track
+        if (currentTrackIdRef.current === trackId && player) {
+            console.log("Player already initialized for track:", trackId);
+            return;
+        }
+
+        console.log("Initializing YouTube player with trackId:", trackId);
+
+        // Clear any existing player first
+        if (player) {
+            try {
+                if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                    intervalRef.current = null;
+                }
+                setPlayer(null);
+                setPlayerReady(false);
+            } catch (e) {
+                console.warn("Error cleaning up previous player:", e);
+            }
+        }
 
         try {
             // Create a unique player ID to avoid conflicts
@@ -78,7 +79,7 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
             const newPlayer = new window.YT.Player(playerRef.current, {
                 height: "0",
                 width: "0",
-                videoId: options.trackId,
+                videoId: trackId,
                 playerVars: {
                     autoplay: 0,
                     controls: 0,
@@ -94,6 +95,7 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
                         );
                         setPlayer(event.target);
                         setPlayerReady(true);
+                        currentTrackIdRef.current = trackId;
                         try {
                             const duration = event.target.getDuration();
                             setDuration(duration);
@@ -102,7 +104,7 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
                             console.warn("Could not get duration:", e);
                         }
                         setError(null);
-                        options.onReady?.();
+                        onReady?.();
                     },
                     onStateChange: (event: YTEvent) => {
                         const state = event.data;
@@ -115,26 +117,44 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
                         if (state === window.YT.PlayerState.PLAYING) {
                             console.log("Setting isPlaying to true");
                             setIsPlaying(true);
-                            options.onStateChange?.("playing");
-                            startTimeTracking();
+                            onStateChange?.("playing");
+                            // Start time tracking directly here to avoid dependency issues
+                            if (intervalRef.current) {
+                                clearInterval(intervalRef.current);
+                            }
+                            intervalRef.current = setInterval(() => {
+                                if (event.target) {
+                                    setCurrentTime(
+                                        event.target.getCurrentTime()
+                                    );
+                                }
+                            }, 1000);
                         } else if (state === window.YT.PlayerState.PAUSED) {
                             console.log("Setting isPlaying to false (paused)");
                             setIsPlaying(false);
-                            options.onStateChange?.("paused");
-                            stopTimeTracking();
+                            onStateChange?.("paused");
+                            // Stop time tracking directly here
+                            if (intervalRef.current) {
+                                clearInterval(intervalRef.current);
+                                intervalRef.current = null;
+                            }
                         } else if (state === window.YT.PlayerState.ENDED) {
                             console.log("Setting isPlaying to false (ended)");
                             setIsPlaying(false);
                             setCurrentTime(0);
-                            options.onStateChange?.("ended");
-                            stopTimeTracking();
+                            onStateChange?.("ended");
+                            // Stop time tracking directly here
+                            if (intervalRef.current) {
+                                clearInterval(intervalRef.current);
+                                intervalRef.current = null;
+                            }
                         }
                     },
                     onError: (event: YTEvent) => {
                         const errorMessage = `YouTube Player Error: ${event.data}`;
                         console.error(errorMessage);
                         setError(errorMessage);
-                        options.onError?.(errorMessage);
+                        onError?.(errorMessage);
                     },
                 },
             });
@@ -144,7 +164,7 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
             console.error("Error creating YouTube player:", error);
             setError("Failed to create YouTube player");
         }
-    }, [options, startTimeTracking, stopTimeTracking]);
+    }, [trackId, onReady, onStateChange, onError, player]);
 
     useEffect(() => {
         // Load YouTube IFrame API
@@ -170,17 +190,19 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
 
     // Update player when trackId changes
     useEffect(() => {
-        if (player && options.trackId) {
-            player.loadVideoById(options.trackId);
+        if (player && trackId && currentTrackIdRef.current !== trackId) {
+            console.log("Loading new track:", trackId);
+            player.loadVideoById(trackId);
             setCurrentTime(0);
+            currentTrackIdRef.current = trackId;
         }
-    }, [options.trackId, player]);
+    }, [trackId, player]);
 
     const play = () => {
         console.log("Play function called:", {
             player: !!player,
             playerReady,
-            trackId: options.trackId,
+            trackId: trackId,
         });
 
         if (player && playerReady) {
@@ -203,7 +225,7 @@ export function useYTMusicPlayer(options: UseYTMusicPlayerOptions) {
         console.log("Pause function called:", {
             player: !!player,
             playerReady,
-            trackId: options.trackId,
+            trackId: trackId,
         });
 
         if (player && playerReady) {

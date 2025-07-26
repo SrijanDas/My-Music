@@ -21,15 +21,16 @@ export function MusicPlayer() {
     const [playbackError, setPlaybackError] = useState<string | null>(null);
     const [volume, setVolume] = useState(0.7);
     const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const userActionRef = useRef<boolean>(false);
 
     const currentSong = room?.current_song;
 
-    console.log("MusicPlayer: Current song data:", {
-        currentSong,
-        youtube_id: currentSong?.youtube_id,
-        title: currentSong?.title,
-        roomIsPlaying: room?.is_playing,
-    });
+    // console.log("MusicPlayer: Current song data:", {
+    //     currentSong,
+    //     youtube_id: currentSong?.youtube_id,
+    //     title: currentSong?.title,
+    //     roomIsPlaying: room?.is_playing,
+    // });
 
     const {
         playerRef,
@@ -56,6 +57,16 @@ export function MusicPlayer() {
                 "for song:",
                 currentSong?.title
             );
+
+            // Immediately update room state when player state changes
+            if (isCreator) {
+                if (state === "playing") {
+                    updatePlaybackState(true, currentTime);
+                } else if (state === "paused") {
+                    updatePlaybackState(false, currentTime);
+                }
+            }
+
             if (isCreator && state === "ended") {
                 skipToNext();
             }
@@ -147,12 +158,44 @@ export function MusicPlayer() {
             !player ||
             !playerReady ||
             !room?.current_song ||
-            !currentSong?.youtube_id
+            !currentSong?.youtube_id ||
+            !isCreator
         )
             return;
 
-        if (room.is_playing && !isPlaying && isCreator) {
-            play();
+        console.log("Play sync effect triggered:", {
+            roomIsPlaying: room.is_playing,
+            localIsPlaying: isPlaying,
+            isCreator,
+            userAction: userActionRef.current,
+            shouldPlay:
+                room.is_playing &&
+                !isPlaying &&
+                isCreator &&
+                !userActionRef.current,
+        });
+
+        // Only auto-play if:
+        // 1. Room state says it should be playing
+        // 2. We're not currently playing
+        // 3. We're the creator
+        // 4. This is not immediately after a user action
+        if (room.is_playing && !isPlaying && !userActionRef.current) {
+            const timeoutId = setTimeout(() => {
+                // Double-check the conditions after a small delay
+                if (
+                    room.is_playing &&
+                    !isPlaying &&
+                    isCreator &&
+                    playerReady &&
+                    !userActionRef.current
+                ) {
+                    console.log("Auto-playing due to room state after delay");
+                    play();
+                }
+            }, 300);
+
+            return () => clearTimeout(timeoutId);
         }
     }, [
         player,
@@ -194,11 +237,20 @@ export function MusicPlayer() {
             console.log(
                 `Attempting to ${isPlaying ? "pause" : "play"} the track`
             );
+
+            // Mark this as a user-initiated action
+            userActionRef.current = true;
+
             if (isPlaying) {
                 pause();
             } else {
                 play();
             }
+
+            // Reset the flag after a delay
+            setTimeout(() => {
+                userActionRef.current = false;
+            }, 1000);
         } catch (error) {
             console.error("Error in play/pause:", error);
             setPlaybackError("Playback control error");
