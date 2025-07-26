@@ -378,8 +378,32 @@ export function MusicPlayer() {
 
                             {/* Play Controls */}
                             <div className="flex items-center justify-center gap-4">
+                                {/* Volume Control */}
+                                <div className="flex items-center gap-2">
+                                    <Volume2 className="h-4 w-4" />
+                                    <input
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.1"
+                                        value={volume}
+                                        onChange={(e) =>
+                                            setVolume(
+                                                parseFloat(e.target.value)
+                                            )
+                                        }
+                                        className="flex-1"
+                                    />
+                                </div>
                                 {isCreator && (
                                     <>
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={handleSkipBack}
+                                        >
+                                            <SkipBack className="h-4 w-4" />
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             size="icon"
@@ -396,34 +420,12 @@ export function MusicPlayer() {
                                             variant="outline"
                                             size="icon"
                                             onClick={handleSkip}
+                                            disabled={queueItems.length === 0}
                                         >
                                             <SkipForward className="h-4 w-4" />
                                         </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="icon"
-                                            onClick={handleSkipBack}
-                                        >
-                                            <SkipBack className="h-4 w-4" />
-                                        </Button>
                                     </>
                                 )}
-                            </div>
-
-                            {/* Volume Control */}
-                            <div className="flex items-center gap-2">
-                                <Volume2 className="h-4 w-4" />
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="1"
-                                    step="0.1"
-                                    value={volume}
-                                    onChange={(e) =>
-                                        setVolume(parseFloat(e.target.value))
-                                    }
-                                    className="flex-1"
-                                />
                             </div>
                         </div>
                     )}
